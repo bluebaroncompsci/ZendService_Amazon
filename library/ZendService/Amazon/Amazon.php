@@ -15,6 +15,7 @@ use DOMXPath;
 use Zend\Crypt\Hmac;
 use ZendRest\Client\RestClient;
 use ZendService\Amazon\Exception;
+use Zend\Http\Response;
 
 /**
  * @category   Zend
@@ -95,6 +96,31 @@ class Amazon
 
 
     /**
+     * Returns a human readable representation of the Amazon request error
+     *
+     * @param  Response $response The response that came from the call to restGet
+     * @return string|false
+     */
+    public function getErrorFromAmazonResponse(Response $response)
+    {
+        $dom = new DOMDocument();
+        if (!$dom->loadXML($response->getBody())) return false;
+
+        $responseObject = simplexml_import_dom($dom);
+        if (
+         !$responseObject ||
+         $responseObject->Error->Code == null ||
+         $responseObject->Error->Message == null
+        )
+            return false;
+
+        return
+         'Amazon Code: '.$responseObject->Error->Code.
+         ' / Amazon Message: "'.$responseObject->Error->Message.'"';
+    }
+
+
+    /**
      * Search for Items
      *
      * @param  array $options Options to use for the Search Query
@@ -113,8 +139,11 @@ class Amazon
         $response = $client->restGet('/onca/xml', $options);
 
         if ($response->isClientError()) {
+            $errorMessage = self::getErrorFromAmazonResponse($response);
             throw new Exception\RuntimeException('An error occurred sending request. Status code: '
-                                           . $response->getStatusCode());
+             . $response->getStatusCode() . ' / '
+             . ($errorMessage ? $errorMessage : "")
+            );
         }
 
         $dom = new DOMDocument();
@@ -146,8 +175,10 @@ class Amazon
         $response = $client->restGet('/onca/xml', $options);
 
         if ($response->isClientError()) {
-            throw new Exception\RuntimeException(
-                'An error occurred sending request. Status code: ' . $response->getStatusCode()
+            $errorMessage = self::getErrorFromAmazonResponse($response);
+            throw new Exception\RuntimeException('An error occurred sending request. Status code: '
+             . $response->getStatusCode() . ' / '
+             . ($errorMessage ? $errorMessage : "")
             );
         }
 
